@@ -14,5 +14,5 @@ snippets = ["./snippets/fe.json"]
 # README.md for the two ways to point it at one, including a local checkout.
 [grammars.fe]
 repository = "https://github.com/infinity-MSFS/fe-lang"
-rev = "0000000000000000000000000000000000000000"
+rev = "d558bb70859da84ed491f212d62216a1ec68bb26"
 path = "editors/tree-sitter-fe"
