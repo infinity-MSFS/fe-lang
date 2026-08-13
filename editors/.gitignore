@@ -1,0 +1,9 @@
+node_modules/
+*.vsix
+
+# Zed clones the grammar into zed/grammars/<name> when it builds a dev
+# extension. It is build output.
+zed/grammars/
+
+# The generated parser under tree-sitter-fe/src is committed on purpose: Zed
+# compiles parser.c directly and never runs `tree-sitter generate`.

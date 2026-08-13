@@ -160,6 +160,16 @@ The host implements two traits — `AircraftState::read` and
 | [design-decisions.md](docs/design-decisions.md) | the arguments, including the noes            |
 | [extending.md](docs/extending.md)               | adding a statement, opcode or format version |
 
+## Editing procedures
+
+[`editors/`](editors) has a Visual Studio Code extension and a Zed extension,
+sharing a tree-sitter grammar. Both highlight a control a procedure *moves*
+differently from state it *reads*, complete keywords and the names your own
+files already use, and handle the language's contextual keywords, so
+`hydraulic.name.check` stays a path. Neither compiles anything: whether a
+control exists is a question only `fe-compiler` and an aircraft's
+`SymbolRegistry` can answer.
+
 ## Tests
 
 ```

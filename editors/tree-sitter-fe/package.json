@@ -1,0 +1,23 @@
+{
+  "name": "tree-sitter-fe",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for the flight-engineer procedure language (.fe)",
+  "license": "MIT",
+  "repository": "https://github.com/infinity-MSFS/fe-lang",
+  "keywords": ["parser", "tree-sitter", "fe", "flight-engineer"],
+  "main": "bindings/node",
+  "tree-sitter": [
+    {
+      "scope": "source.fe",
+      "file-types": ["fe"],
+      "injection-regex": "^fe$"
+    }
+  ],
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.25.0"
+  }
+}

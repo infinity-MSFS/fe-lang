@@ -1,0 +1,22 @@
+{
+  "grammars": [
+    {
+      "name": "fe",
+      "camelcase": "Fe",
+      "scope": "source.fe",
+      "path": ".",
+      "file-types": ["fe"],
+      "highlights": ["queries/highlights.scm"],
+      "injection-regex": "^fe$"
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Tree-sitter grammar for the flight-engineer procedure language",
+    "authors": [{ "name": "infinity-MSFS" }],
+    "links": {
+      "repository": "https://github.com/infinity-MSFS/fe-lang"
+    }
+  }
+}

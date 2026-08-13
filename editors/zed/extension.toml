@@ -1,0 +1,18 @@
+id = "fe"
+name = "Flight Engineer"
+description = "Procedure language for the flight engineer's panel: syntax highlighting, outline, brackets and snippet completions for .fe files."
+version = "0.1.0"
+schema_version = 1
+authors = ["infinity-MSFS"]
+repository = "https://github.com/infinity-MSFS/fe-lang"
+
+snippets = ["./snippets/fe.json"]
+
+# Zed builds the grammar by fetching this commit and compiling
+# `editors/tree-sitter-fe/src/parser.c` — which is why the generated parser is
+# committed. `rev` must name a commit that exists in the repository below; see
+# README.md for the two ways to point it at one, including a local checkout.
+[grammars.fe]
+repository = "https://github.com/infinity-MSFS/fe-lang"
+rev = "0000000000000000000000000000000000000000"
+path = "editors/tree-sitter-fe"

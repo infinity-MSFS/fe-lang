@@ -1,0 +1,56 @@
+{
+  "name": "fe-lang",
+  "displayName": "Flight Engineer",
+  "description": "Procedure language for the flight engineer's panel: syntax highlighting, completion, outline and snippets for .fe files.",
+  "version": "0.1.0",
+  "publisher": "infinity-msfs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/infinity-MSFS/fe-lang.git",
+    "directory": "editors/vscode"
+  },
+  "categories": ["Programming Languages", "Snippets"],
+  "keywords": ["fe", "flight engineer", "msfs", "procedure", "checklist"],
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "main": "./src/extension.js",
+  "activationEvents": ["onLanguage:fe"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "fe",
+        "aliases": ["Flight Engineer", "fe"],
+        "extensions": [".fe"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "fe",
+        "scopeName": "source.fe",
+        "path": "./syntaxes/fe.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Flight Engineer",
+      "properties": {
+        "fe.completion.scanWorkspace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Offer procedure names, control names and state paths gathered from every .fe file in the workspace. When off, only open files are used."
+        },
+        "fe.completion.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Suggest keywords and names while typing."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test",
+    "package": "npx --yes @vscode/vsce package"
+  }
+}

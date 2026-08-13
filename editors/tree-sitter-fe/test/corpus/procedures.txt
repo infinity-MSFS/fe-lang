@@ -1,0 +1,430 @@
+==================
+Metadata only
+==================
+
+procedure MINIMAL {
+    name     "Minimal"
+    category normal
+}
+
+---
+
+(source_file
+  (procedure
+    name: (identifier)
+    (metadata
+      (name_entry
+        value: (string)))
+    (metadata
+      (category_entry
+        value: (identifier)))))
+
+==================
+Every metadata entry
+==================
+
+procedure META {
+    name        "Meta"
+    description "Every entry."
+    category    abnormal
+    priority    80
+    revision    3
+    trigger     hydraulic.2.pressure < 1800 && engine.2.running
+    require     engine.2.running "engine 2 must be running"
+    require     !fuel.crossfeed_open
+}
+
+---
+
+(source_file
+  (procedure
+    name: (identifier)
+    (metadata
+      (name_entry
+        value: (string)))
+    (metadata
+      (description_entry
+        value: (string)))
+    (metadata
+      (category_entry
+        value: (identifier)))
+    (metadata
+      (priority_entry
+        value: (number)))
+    (metadata
+      (revision_entry
+        value: (number)))
+    (metadata
+      (trigger_entry
+        condition: (binary_expression
+          (binary_expression
+            (path
+              (identifier)
+              (number)
+              (identifier))
+            (number))
+          (path
+            (identifier)
+            (number)
+            (identifier)))))
+    (metadata
+      (require_entry
+        condition: (path
+          (identifier)
+          (number)
+          (identifier))
+        message: (string)))
+    (metadata
+      (require_entry
+        condition: (unary_expression
+          (path
+            (identifier)
+            (identifier)))))))
+
+==================
+Control steps
+==================
+
+procedure CONTROLS {
+    name     "Controls"
+    category normal
+
+    check FUEL_QUANTITY_INDICATION
+    set FUEL_XFEED_SELECTOR = TANK_3_TO_1
+    set FUEL_PUMP_PRESSURE_TARGET = 22.5
+    start HYD_2_ELECTRIC_PUMP
+    stop HYD_2_ELECTRIC_PUMP
+    open FUEL_CROSSFEED_VALVE
+    close FUEL_CROSSFEED_VALVE
+    notify "Crossfeed complete"
+    call ELEC_BUS_2_RESTORE
+}
+
+---
+
+(source_file
+  (procedure
+    name: (identifier)
+    (metadata
+      (name_entry
+        value: (string)))
+    (metadata
+      (category_entry
+        value: (identifier)))
+    (step
+      (check_step
+        control: (control_path
+          (identifier))))
+    (step
+      (set_step
+        control: (control_path
+          (identifier))
+        value: (position
+          (identifier))))
+    (step
+      (set_step
+        control: (control_path
+          (identifier))
+        value: (number)))
+    (step
+      (verb_step
+        control: (control_path
+          (identifier))))
+    (step
+      (verb_step
+        control: (control_path
+          (identifier))))
+    (step
+      (verb_step
+        control: (control_path
+          (identifier))))
+    (step
+      (verb_step
+        control: (control_path
+          (identifier))))
+    (step
+      (notify_step
+        message: (string)))
+    (step
+      (call_step
+        target: (identifier)))))
+
+==================
+Waiting and completing
+==================
+
+procedure WAITING {
+    name     "Waiting"
+    category normal
+
+    wait hydraulic.2.pressure > 2500
+    wait hydraulic.2.pressure > 2500 timeout 30s
+    wait hydraulic.2.pressure > 2500 timeout 500ms else fail
+    complete
+    complete when cabin.altitude < 10000 timeout 5m
+    fail
+    fail "system 2 pressure not restored"
+}
+
+---
+
+(source_file
+  (procedure
+    name: (identifier)
+    (metadata
+      (name_entry
+        value: (string)))
+    (metadata
+      (category_entry
+        value: (identifier)))
+    (step
+      (wait_step
+        condition: (binary_expression
+          (path
+            (identifier)
+            (number)
+            (identifier))
+          (number))))
+    (step
+      (wait_step
+        condition: (binary_expression
+          (path
+            (identifier)
+            (number)
+            (identifier))
+          (number))
+        timeout: (timeout_clause
+          duration: (duration))))
+    (step
+      (wait_step
+        condition: (binary_expression
+          (path
+            (identifier)
+            (number)
+            (identifier))
+          (number))
+        timeout: (timeout_clause
+          duration: (duration))))
+    (step
+      (complete_step))
+    (step
+      (complete_step
+        condition: (binary_expression
+          (path
+            (identifier)
+            (identifier))
+          (number))
+        timeout: (timeout_clause
+          duration: (duration))))
+    (step
+      (fail_step))
+    (step
+      (fail_step
+        message: (string)))))
+
+==================
+Branching
+==================
+
+procedure BRANCHING {
+    name     "Branching"
+    category normal
+
+    if generator.2.available {
+        start GEN_2_FIELD
+    } else if electrical.ac_bus.1.powered {
+        set BUS_TIE_1_2 = CLOSED
+    } else {
+        fail "no power source"
+    }
+}
+
+---
+
+(source_file
+  (procedure
+    name: (identifier)
+    (metadata
+      (name_entry
+        value: (string)))
+    (metadata
+      (category_entry
+        value: (identifier)))
+    (step
+      (if_step
+        condition: (path
+          (identifier)
+          (number)
+          (identifier))
+        consequence: (block
+          (step
+            (verb_step
+              control: (control_path
+                (identifier)))))
+        alternative: (if_step
+          condition: (path
+            (identifier)
+            (identifier)
+            (number)
+            (identifier))
+          consequence: (block
+            (step
+              (set_step
+                control: (control_path
+                  (identifier))
+                value: (position
+                  (identifier)))))
+          alternative: (block
+            (step
+              (fail_step
+                message: (string)))))))))
+
+==================
+Keywords are contextual
+==================
+
+procedure CONTEXTUAL {
+    name     "Contextual"
+    category normal
+
+    check name.check.set
+    wait hydraulic.name.check > 3 && !fuel.wait.if
+    set complete.timeout = OPEN
+}
+
+---
+
+(source_file
+  (procedure
+    name: (identifier)
+    (metadata
+      (name_entry
+        value: (string)))
+    (metadata
+      (category_entry
+        value: (identifier)))
+    (step
+      (check_step
+        control: (control_path
+          (identifier)
+          (identifier)
+          (identifier))))
+    (step
+      (wait_step
+        condition: (binary_expression
+          (binary_expression
+            (path
+              (identifier)
+              (identifier)
+              (identifier))
+            (number))
+          (unary_expression
+            (path
+              (identifier)
+              (identifier)
+              (identifier))))))
+    (step
+      (set_step
+        control: (control_path
+          (identifier)
+          (identifier))
+        value: (position
+          (identifier))))))
+
+==================
+Expressions
+==================
+
+procedure EXPRESSIONS {
+    name     "Expressions"
+    category normal
+
+    trigger (cabin.altitude > 10000 || cabin.warning) && !aircraft.on_ground
+    require engine.2.n2 >= -1.5
+    wait fuel.pump_running == true
+    wait fuel.pump_running != false
+}
+
+---
+
+(source_file
+  (procedure
+    name: (identifier)
+    (metadata
+      (name_entry
+        value: (string)))
+    (metadata
+      (category_entry
+        value: (identifier)))
+    (metadata
+      (trigger_entry
+        condition: (binary_expression
+          (parenthesized_expression
+            (binary_expression
+              (binary_expression
+                (path
+                  (identifier)
+                  (identifier))
+                (number))
+              (path
+                (identifier)
+                (identifier))))
+          (unary_expression
+            (path
+              (identifier)
+              (identifier))))))
+    (metadata
+      (require_entry
+        condition: (binary_expression
+          (path
+            (identifier)
+            (number)
+            (identifier))
+          (unary_expression
+            (number)))))
+    (step
+      (wait_step
+        condition: (binary_expression
+          (path
+            (identifier)
+            (identifier))
+          (boolean))))
+    (step
+      (wait_step
+        condition: (binary_expression
+          (path
+            (identifier)
+            (identifier))
+          (boolean))))))
+
+==================
+Comments and escapes
+==================
+
+// A line comment.
+/* A block comment
+   over two lines. */
+procedure TRIVIA {
+    name     "He said \"pull\"\n\tand \\ then"
+    category reference // trailing comment
+}
+
+---
+
+(source_file
+  (line_comment)
+  (block_comment)
+  (procedure
+    name: (identifier)
+    (metadata
+      (name_entry
+        value: (string
+          (escape_sequence)
+          (escape_sequence)
+          (escape_sequence)
+          (escape_sequence)
+          (escape_sequence))))
+    (metadata
+      (category_entry
+        value: (identifier)))
+    (line_comment)))
