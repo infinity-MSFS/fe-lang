@@ -1,0 +1,11 @@
+[package]
+name = "fe-runtime"
+version.workspace = true
+edition.workspace = true
+description = "no_std, alloc free for .febin databases"
+
+[dependencies]
+
+[features]
+default = []
+std = []

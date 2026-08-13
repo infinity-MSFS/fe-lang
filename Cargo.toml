@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members=[
+    "fe-compiler",
+    "fe-lang",
+    "fe-runtime"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[profile.release]
+opt-level = "z"
+lto = true
+panic = "abort"
+codegen-units = 1

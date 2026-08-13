@@ -1,0 +1,9 @@
+[package]
+name = "fe-compiler"
+version.workspace = true
+edition.workspace = true
+description = "compiles fe-lang into a single .febin database"
+
+[dependencies]
+fe-lang = { path = "../fe-lang" }
+fe-runtime = { path = "../fe-runtime" }
