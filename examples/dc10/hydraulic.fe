@@ -1,0 +1,58 @@
+// DC-10 hydraulic procedures.
+//
+// Illustrative only. Real procedures are authored and reviewed with a
+// qualified flight engineer; these exist to exercise the language.
+
+procedure HYD_2_LOW_PRESSURE {
+    name        "Hydraulic System 2 Low Pressure"
+    description "Restore system 2 pressure using the electric standby pump."
+    category    abnormal
+    priority    80
+    revision    3
+
+    trigger hydraulic.2.pressure < 1800 && engine.2.running
+    require engine.2.running "engine 2 must be running"
+
+    check HYD_2_ENGINE_PUMP
+
+    if electrical.ac_bus.2.powered {
+        call HYD_2_ELECTRIC_PUMP_START
+    } else {
+        notify "AC bus 2 unpowered - electric pump unavailable"
+        call ELEC_BUS_2_RESTORE
+    }
+
+    wait hydraulic.2.pressure > 2500 timeout 30s
+
+    if hydraulic.2.pressure > 2500 {
+        notify "Hydraulic system 2 pressure restored"
+        complete
+    }
+
+    notify "Hydraulic system 2 pressure remains low"
+    close HYD_2_ISOLATION_VALVE
+    fail "system 2 pressure not restored"
+}
+
+procedure HYD_2_ELECTRIC_PUMP_START {
+    name     "Hydraulic 2 Electric Pump Start"
+    category reference
+    priority 10
+
+    require electrical.ac_bus.2.powered "AC bus 2 must be powered"
+
+    set HYD_2_ELECTRIC_PUMP = ON
+    wait hydraulic.2.electric_pump_running timeout 5s else fail
+    notify "Hydraulic 2 electric pump running"
+}
+
+procedure HYD_ALL_SYSTEMS_CHECK {
+    name     "Hydraulic Systems Check"
+    category normal
+
+    check HYD_1_ENGINE_PUMP
+    check HYD_2_ENGINE_PUMP
+    check HYD_3_ENGINE_PUMP
+
+    complete when hydraulic.1.pressure > 2500 && hydraulic.2.pressure > 2500 timeout 15s
+}
