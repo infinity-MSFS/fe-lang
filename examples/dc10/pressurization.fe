@@ -1,15 +1,12 @@
 // DC-10 pressurization procedures. Illustrative only — these exercise the
 // language and are not authentic DC-10 procedures.
-
 procedure CABIN_RAPID_DEPRESSURIZATION {
-    name        "Cabin Rapid Depressurization"
+    name "Cabin Rapid Depressurization"
     description "Flight engineer's actions following a rapid loss of cabin pressure."
-    category    emergency
-    priority    250
-    revision    2
-
+    category emergency
+    priority 250
+    revision 2
     trigger cabin.altitude > 10000 && cabin.rate_of_climb > 2000
-
     notify "CABIN ALTITUDE - oxygen masks on, establish communication"
     check OXYGEN_PRESSURE_INDICATION
 
@@ -18,26 +15,20 @@ procedure CABIN_RAPID_DEPRESSURIZATION {
     close OUTFLOW_VALVE_FORWARD
     close OUTFLOW_VALVE_AFT
     set PACK_FLOW_SELECTOR = HIGH
-
     wait cabin.rate_of_climb < 500 timeout 20s
-
     if cabin.rate_of_climb < 500 {
         notify "Cabin rate arrested - monitor cabin altitude"
         complete when cabin.altitude < 10000 timeout 5m
     }
-
     notify "Cabin altitude still climbing - structural leak likely"
     call CABIN_EMERGENCY_DESCENT_SUPPORT
     fail "cabin pressure not recoverable"
 }
-
 procedure CABIN_EMERGENCY_DESCENT_SUPPORT {
-    name     "Emergency Descent - Engineer's Panel"
+    name "Emergency Descent - Engineer's Panel"
     category emergency
     priority 240
-
-    require !aircraft.on_ground "airborne only"
-
+    require ! aircraft.on_ground "airborne only"
     notify "Advise the flight deck: emergency descent"
     set PACK_FLOW_SELECTOR = NORMAL
     check OXYGEN_PRESSURE_INDICATION

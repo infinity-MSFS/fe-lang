@@ -1,29 +1,21 @@
 // DC-10 fuel procedures. Illustrative only.
-
 procedure FUEL_IMBALANCE_1_3 {
-    name        "Fuel Imbalance Tanks 1 and 3"
+    name "Fuel Imbalance Tanks 1 and 3"
     description "Correct a lateral imbalance by cross-feeding."
-    category    abnormal
-    priority    40
-    revision    1
-
+    category abnormal
+    priority 40
+    revision 1
     trigger fuel.imbalance_1_3 > 1500
-
-    require !fuel.crossfeed_open "crossfeed must start closed"
-
+    require ! fuel.crossfeed_open "crossfeed must start closed"
     check FUEL_QUANTITY_INDICATION
-
     if fuel.tank.1.quantity > fuel.tank.3.quantity {
         set FUEL_XFEED_SELECTOR = TANK_1_TO_3
     } else {
         set FUEL_XFEED_SELECTOR = TANK_3_TO_1
     }
-
     open FUEL_CROSSFEED_VALVE
     set FUEL_PUMP_PRESSURE_TARGET = 22.5
-
     wait fuel.imbalance_1_3 < 300 timeout 5m
-
     close FUEL_CROSSFEED_VALVE
     set FUEL_XFEED_SELECTOR = OFF
     notify "Fuel imbalance corrected"

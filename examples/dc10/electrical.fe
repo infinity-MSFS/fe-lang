@@ -1,16 +1,14 @@
 // DC-10 electrical procedures. Illustrative only.
-
 procedure ELEC_BUS_2_RESTORE {
-    name     "AC Bus 2 Restore"
+    name "AC Bus 2 Restore"
     category abnormal
     priority 70
-
-    trigger !electrical.ac_bus.2.powered && engine.2.running
-
+    trigger ! electrical.ac_bus.2.powered && engine.2.running
     if generator.2.available {
         set GEN_2_FIELD = ON
         wait electrical.ac_bus.2.powered timeout 10s
-    } else if electrical.ac_bus.1.powered {
+    } else
+    if electrical.ac_bus.1.powered {
         notify "Cross-tying bus 1 to bus 2"
         set BUS_TIE_1_2 = CLOSED
         wait electrical.ac_bus.2.powered timeout 10s
@@ -18,11 +16,9 @@ procedure ELEC_BUS_2_RESTORE {
         notify "No source available for AC bus 2"
         fail "no power source"
     }
-
-    if !electrical.ac_bus.2.powered {
+    if ! electrical.ac_bus.2.powered {
         notify "AC bus 2 remains unpowered"
         fail "bus 2 restore unsuccessful"
     }
-
     notify "AC bus 2 restored"
 }
