@@ -1,0 +1,10 @@
+[package]
+name = "fe-project"
+version.workspace = true
+edition.workspace = true
+description = "reads an fe.toml manifest into a SymbolRegistry"
+
+[dependencies]
+fe-compiler = { path = "../fe-compiler" }
+serde = { version = "1", features = ["derive"] }
+toml = { version = "0.8", default-features = false, features = ["parse"] }

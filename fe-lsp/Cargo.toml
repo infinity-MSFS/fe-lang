@@ -1,0 +1,22 @@
+[package]
+name = "fe-lsp"
+version.workspace = true
+edition.workspace = true
+description = "language server for the FE procedure language"
+
+[lib]
+name = "fe_lsp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fe-lsp"
+path = "src/main.rs"
+
+[dependencies]
+fe-compiler = { path = "../fe-compiler" }
+fe-lang = { path = "../fe-lang" }
+fe-project = { path = "../fe-project" }
+lsp-server = "0.10"
+lsp-types = "0.97"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

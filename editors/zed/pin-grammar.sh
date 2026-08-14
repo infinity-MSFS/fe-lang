@@ -29,5 +29,16 @@ sed -i.bak \
     "$manifest"
 rm -f "$manifest.bak"
 
+# Zed reuses grammars/fe if it is already there, but refuses it when its origin
+# is not the repository just written — switching between --local and GitHub
+# otherwise fails the next install with "failed to compile grammar 'fe'". The
+# checkout is build output, so throwing it away costs one clone.
+checkout="$(dirname "$0")/grammars/fe"
+if [ -d "$checkout" ] &&
+    [ "$(git -C "$checkout" remote get-url origin 2>/dev/null)" != "$repository" ]; then
+    echo "removing grammars/fe: cloned from a different repository"
+    rm -rf "$checkout" "$(dirname "$0")/grammars/fe.wasm"
+fi
+
 echo "grammar pinned to $repository @ $rev"
 echo "now reinstall the dev extension in Zed so it rebuilds the grammar"

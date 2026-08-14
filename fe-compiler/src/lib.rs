@@ -5,6 +5,7 @@ mod sema;
 pub mod symbols;
 
 pub use emit::Stats;
+pub use fe_lang;
 pub use fe_lang::diagnostics::{Diagnostic, Diagnostics, Label, Severity, codes};
 pub use fe_lang::span::{Location, SourceMap, SourceUnit, Span, UnitId};
 pub use symbols::{
@@ -84,15 +85,35 @@ impl std::fmt::Display for CompileError {
 
 impl std::error::Error for CompileError {}
 
-pub fn compile(units: &[SourceUnit], registry: &SymbolRegistry) -> Result<Compiled, CompileError> {
+#[derive(Debug)]
+pub struct Checked {
+    pub asts: Vec<fe_lang::Ast>,
+    pub diagnostics: Diagnostics,
+    pub compiled: Option<Compiled>,
+}
+
+impl Checked {
+    pub fn has_errors(&self) -> bool {
+        self.diagnostics.has_errors()
+    }
+}
+
+pub fn check_full(units: &[SourceUnit], registry: &SymbolRegistry) -> Checked {
     let mut diagnostics = Diagnostics::new();
     let parsed = parse_all(units, &mut diagnostics);
+    let asts = parsed.iter().map(|(_, ast)| ast.clone()).collect();
 
-    let module = sema::analyze(&parsed, registry, &mut diagnostics);
-    let Some(module) = module else {
-        return Err(CompileError {
-            diagnostics: diagnostics.into_vec(),
-        });
+    let bail = |diagnostics: Diagnostics| Checked {
+        asts: Vec::new(),
+        diagnostics,
+        compiled: None,
+    };
+
+    let Some(module) = sema::analyze(&parsed, registry, &mut diagnostics) else {
+        return Checked {
+            asts,
+            ..bail(diagnostics)
+        };
     };
 
     let (bytes, stats) = match emit::emit(&module) {
@@ -101,9 +122,10 @@ pub fn compile(units: &[SourceUnit], registry: &SymbolRegistry) -> Result<Compil
             for error in errors {
                 diagnostics.push(error);
             }
-            return Err(CompileError {
-                diagnostics: diagnostics.into_vec(),
-            });
+            return Checked {
+                asts,
+                ..bail(diagnostics)
+            };
         }
     };
 
@@ -116,16 +138,31 @@ pub fn compile(units: &[SourceUnit], registry: &SymbolRegistry) -> Result<Compil
             )
             .with_note("this is a bug in fe-compiler, not in the procedure source"),
         );
-        return Err(CompileError {
-            diagnostics: diagnostics.into_vec(),
-        });
+        return Checked {
+            asts,
+            ..bail(diagnostics)
+        };
     }
 
-    Ok(Compiled {
-        bytes,
-        warnings: diagnostics.into_vec(),
-        stats,
-    })
+    Checked {
+        asts,
+        compiled: Some(Compiled {
+            bytes,
+            warnings: diagnostics.iter().cloned().collect(),
+            stats,
+        }),
+        diagnostics,
+    }
+}
+
+pub fn compile(units: &[SourceUnit], registry: &SymbolRegistry) -> Result<Compiled, CompileError> {
+    let checked = check_full(units, registry);
+    match checked.compiled {
+        Some(compiled) => Ok(compiled),
+        None => Err(CompileError {
+            diagnostics: checked.diagnostics.into_vec(),
+        }),
+    }
 }
 
 pub fn check(units: &[SourceUnit], registry: &SymbolRegistry) -> Diagnostics {

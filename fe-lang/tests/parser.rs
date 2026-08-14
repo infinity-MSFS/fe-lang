@@ -301,3 +301,36 @@ fn an_empty_source_is_an_empty_ast() {
     let ast = parse_ok("   \n// just a comment\n");
     assert!(ast.procedures.is_empty());
 }
+
+#[test]
+fn a_procedure_span_reaches_its_closing_brace() {
+    let source = "procedure P {\n    name \"P\"\n    category normal\n    complete\n}\n";
+    let ast = parse_ok(source);
+    let span = ast.procedures[0].span;
+    assert_eq!(
+        &source[span.start as usize..span.end as usize],
+        source.trim_end()
+    );
+}
+
+#[test]
+fn a_step_span_reaches_its_last_token() {
+    let source = wrap("wait hydraulic.2.pressure > 2500 timeout 30s");
+    let ast = parse_ok(&source);
+    let span = ast.procedures[0].body.steps[0].span();
+    assert_eq!(
+        &source[span.start as usize..span.end as usize],
+        "wait hydraulic.2.pressure > 2500 timeout 30s"
+    );
+}
+
+#[test]
+fn an_if_span_covers_both_branches() {
+    let source = wrap("if a {\n        complete\n    } else {\n        fail\n    }");
+    let ast = parse_ok(&source);
+    let span = ast.procedures[0].body.steps[0].span();
+    let text = &source[span.start as usize..span.end as usize];
+    assert!(text.starts_with("if a {"), "{text:?}");
+    assert!(text.ends_with('}'), "{text:?}");
+    assert!(text.contains("else"), "{text:?}");
+}

@@ -6,7 +6,8 @@ pub mod span;
 pub mod token;
 
 pub use ast::Ast;
-pub use diagnostics::{Diagnostic, Diagnostics, Label, Severity, codes};
+pub use diagnostics::{codes, Diagnostic, Diagnostics, Label, Severity};
+pub use lexer::{Trivia, TriviaKind};
 pub use span::{Location, SourceMap, SourceUnit, Span, UnitId};
 pub use token::{Keyword, Token, TokenKind};
 

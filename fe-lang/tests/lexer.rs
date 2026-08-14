@@ -182,3 +182,35 @@ fn non_ascii_outside_a_string_does_not_split_a_character() {
     let (_, diagnostics) = lex("é");
     assert_eq!(diagnostics.errors().count(), 1);
 }
+
+#[test]
+fn comments_are_recoverable_even_though_the_parser_ignores_them() {
+    use fe_lang::lexer::{TriviaKind, tokenize_with_trivia};
+
+    let source = "// leading\nprocedure P /* inline */ {\n}\n";
+    let mut diagnostics = Diagnostics::new();
+    let (tokens, trivia) = tokenize_with_trivia(UnitId(0), source, &mut diagnostics);
+
+    assert!(!diagnostics.has_errors());
+    assert_eq!(
+        tokens.iter().map(|t| t.kind.clone()).collect::<Vec<_>>(),
+        lex_ok(source)
+    );
+
+    let text = |t: &fe_lang::Trivia| &source[t.span.start as usize..t.span.end as usize];
+    assert_eq!(trivia.len(), 2);
+    assert_eq!(trivia[0].kind, TriviaKind::Line);
+    assert_eq!(text(&trivia[0]), "// leading");
+    assert_eq!(trivia[1].kind, TriviaKind::Block);
+    assert_eq!(text(&trivia[1]), "/* inline */");
+}
+
+#[test]
+fn an_unterminated_block_comment_is_still_recorded() {
+    use fe_lang::lexer::tokenize_with_trivia;
+
+    let mut diagnostics = Diagnostics::new();
+    let (_, trivia) = tokenize_with_trivia(UnitId(0), "procedure P /* oops", &mut diagnostics);
+    assert!(diagnostics.has_errors());
+    assert_eq!(trivia.len(), 1);
+}

@@ -1,8 +1,8 @@
 {
   "name": "fe-lang",
   "displayName": "Flight Engineer",
-  "description": "Procedure language for the flight engineer's panel: syntax highlighting, completion, outline and snippets for .fe files.",
-  "version": "0.1.0",
+  "description": "Procedure language for the flight engineer's panel: compiler-backed diagnostics, completion, hover, navigation and formatting for .fe files.",
+  "version": "0.2.0",
   "publisher": "infinity-msfs",
   "license": "MIT",
   "repository": {
@@ -10,19 +10,39 @@
     "url": "https://github.com/infinity-MSFS/fe-lang.git",
     "directory": "editors/vscode"
   },
-  "categories": ["Programming Languages", "Snippets"],
-  "keywords": ["fe", "flight engineer", "msfs", "procedure", "checklist"],
+  "categories": [
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "fe",
+    "flight engineer",
+    "msfs",
+    "procedure",
+    "checklist"
+  ],
   "engines": {
     "vscode": "^1.75.0"
   },
   "main": "./src/extension.js",
-  "activationEvents": ["onLanguage:fe"],
+  "activationEvents": [
+    "onLanguage:fe",
+    "workspaceContains:**/fe.toml"
+  ],
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
   "contributes": {
     "languages": [
       {
         "id": "fe",
-        "aliases": ["Flight Engineer", "fe"],
-        "extensions": [".fe"],
+        "aliases": [
+          "Flight Engineer",
+          "fe"
+        ],
+        "extensions": [
+          ".fe"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -33,18 +53,40 @@
         "path": "./syntaxes/fe.tmLanguage.json"
       }
     ],
+    "commands": [
+      {
+        "command": "fe.restartServer",
+        "title": "Restart Language Server",
+        "category": "Flight Engineer"
+      },
+      {
+        "command": "fe.showOutput",
+        "title": "Show Output",
+        "category": "Flight Engineer"
+      }
+    ],
     "configuration": {
       "title": "Flight Engineer",
       "properties": {
-        "fe.completion.scanWorkspace": {
-          "type": "boolean",
-          "default": true,
-          "description": "Offer procedure names, control names and state paths gathered from every .fe file in the workspace. When off, only open files are used."
+        "fe.server.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the fe-lsp executable. When empty, it is looked up on PATH."
         },
-        "fe.completion.enabled": {
+        "fe.manifest": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the aircraft's fe.toml, relative to the workspace. When empty, the nearest fe.toml at or above the workspace root is used. Without one the server reports syntax errors only, because whether a control exists is a question only the aircraft's symbol registry can answer."
+        },
+        "fe.inlayHints.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Suggest keywords and names while typing."
+          "description": "Show the position a verb moves a control to, an analog control's registered range, and a timeout in milliseconds."
+        },
+        "fe.semanticTokens.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Colour names by what the aircraft's registry says they are, so a control a procedure moves does not look like state it reads."
         }
       }
     }

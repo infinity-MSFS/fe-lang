@@ -40,13 +40,13 @@ thing that bites at 3am.
 
 ## Control kinds
 
-| Kind | Positions | Accepts |
-| --- | --- | --- |
-| `switch()` | `OFF`, `ON` | `set = OFF/ON`, `start`, `stop`, `check` |
-| `valve()` | `CLOSED`, `OPEN` | `set = CLOSED/OPEN`, `open`, `close`, `check` |
-| `selector([...])` | host-defined | `set = <name>`, `check` |
-| `analog(min, max)` | — | `set = <number in range>`, `check` |
-| `checklist()` | — | `check` only |
+| Kind               | Positions        | Accepts                                       |
+| ------------------ | ---------------- | --------------------------------------------- |
+| `switch()`         | `OFF`, `ON`      | `set = OFF/ON`, `start`, `stop`, `check`      |
+| `valve()`          | `CLOSED`, `OPEN` | `set = CLOSED/OPEN`, `open`, `close`, `check` |
+| `selector([...])`  | host-defined     | `set = <name>`, `check`                       |
+| `analog(min, max)` | —                | `set = <number in range>`, `check`            |
+| `checklist()`      | —                | `check` only                                  |
 
 Position names are matched case-insensitively, so `set X = on` and
 `set X = ON` are the same. A `selector` with positions named `OFF` and `ON`
@@ -68,17 +68,17 @@ does not interpret them.
 
 ## What the compiler does with it
 
-* **Resolution.** An unknown name is E0201, with a suggestion when something
+- **Resolution.** An unknown name is E0201, with a suggestion when something
   close exists — the near-miss case is the most common authoring mistake and
   the one where a compiler earns its keep.
-* **Type checking.** `hydraulic.2.pressure > 2500` type-checks against the
+- **Type checking.** `hydraulic.2.pressure > 2500` type-checks against the
   registered `ValueType`; comparing a bool to a number is E0204.
-* **Action validity.** `open` on a switch is E0206, with the control's actual
+- **Action validity.** `open` on a switch is E0206, with the control's actual
   positions listed. An unlisted selector position is E0205, likewise with the
   valid set. An analog value outside the registered range is E0207 — a compile
   error, not a runtime clamp, because a clamped value is a procedure that
   silently does something other than what it says.
-* **Pruning.** Only symbols and controls a procedure actually references reach
+- **Pruning.** Only symbols and controls a procedure actually references reach
   the output. A registry with two hundred entries and a database that uses
   eleven produces eleven records.
 
@@ -91,3 +91,51 @@ visible at a glance in the source. Nothing enforces it.
 
 `RegistryError` covers the two things that can go wrong at registration: a
 duplicate name, and a name that is not a legal path.
+
+## Writing it down
+
+A registry built in Rust is reachable only from code that links the aircraft's
+build. That is fine for the build and useless to an editor, which cannot run it —
+and so, for a long time, an editor could not tell you whether a control existed.
+
+[`fe-project`](../fe-project) reads the same registry from an `fe.toml`:
+
+```toml
+[project]
+sources = ["procedures"]        # directories or .fe files, never globs
+
+[state]
+"hydraulic.2.pressure" = { type = "f32",  tag = 10 }
+"engine.2.running"     = { type = "bool", tag = 20 }
+
+[controls]
+HYD_2_ELECTRIC_PUMP       = { kind = "switch",    tag = 103 }
+HYD_2_ISOLATION_VALVE     = { kind = "valve",     tag = 104 }
+HYD_1_ENGINE_PUMP         = { kind = "checklist", tag = 100 }
+FUEL_XFEED_SELECTOR       = { kind = "selector",  tag = 120, positions = ["OFF", "TANK_1_TO_3", "TANK_3_TO_1"] }
+FUEL_PUMP_PRESSURE_TARGET = { kind = "analog",    tag = 123, min = 0.0, max = 50.0 }
+```
+
+```rust
+let manifest = fe_project::parse(&std::fs::read_to_string("fe.toml")?)?;
+let compiled = fe_compiler::compile(&units, &manifest.registry)?;
+```
+
+`type` is `bool` or `f32`; `number` is accepted as an alias, since that is what
+`ValueType::as_str` prints in a diagnostic. `kind` is one of the five above. A
+key that does not apply to the kind — `positions` on a switch, `min` on a valve —
+is an error rather than something quietly ignored: it means the author believes
+something the compiler does not, and silence is how a manifest and an aircraft
+drift apart. Every problem is reported at once, each with the byte range of the
+entry that caused it, so a broken manifest is a set of squiggles rather than a
+scavenger hunt.
+
+Like `fe-compiler`, nothing in `fe-project` touches a filesystem — the caller
+supplies the text. That is what lets one function serve an aircraft's `build.rs`,
+its author's editor and a test.
+
+The point is not the file format. It is that the build and the editor read the
+_same file_, so they cannot disagree about what the aircraft has;
+`fe-project/tests/manifest.rs` asserts that the example manifest and the registry
+built in Rust are the same registry, symbol for symbol and tag for tag. What that
+buys is in [`editor-support.md`](editor-support.md).

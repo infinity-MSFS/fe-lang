@@ -1,0 +1,72 @@
+# What this aircraft exposes to its procedures.
+#
+# This is the same registry as `fe-compiler/tests/support/mod.rs::registry()`,
+# written down instead of built in Rust — and a test asserts the two agree. An
+# aircraft's build reads this file to compile its database; an editor reads it
+# to tell you, as you type, whether a control exists and what it accepts. One
+# file, so the two answers cannot differ.
+#
+# These are illustrative, not authentic DC-10 symbols. See the note at the
+# bottom of the repository README.
+
+[project]
+sources = ["."]
+
+# ---------------------------------------------------------------------------
+# State: readable, never writable. The aircraft owns it.
+#
+# `tag` is an arbitrary u32 that travels through the compiler untouched and
+# arrives at the host as `Symbol::tag`. It is the dispatch key: the aircraft
+# matches on an integer, never on a string.
+# ---------------------------------------------------------------------------
+
+[state]
+"hydraulic.1.pressure"              = { type = "f32",  tag = 10 }
+"hydraulic.2.pressure"              = { type = "f32",  tag = 11 }
+"hydraulic.3.pressure"              = { type = "f32",  tag = 12 }
+"hydraulic.2.electric_pump_running" = { type = "bool", tag = 13 }
+
+"engine.2.running" = { type = "bool", tag = 20 }
+
+"electrical.ac_bus.1.powered" = { type = "bool", tag = 30 }
+"electrical.ac_bus.2.powered" = { type = "bool", tag = 31 }
+"generator.2.available"       = { type = "bool", tag = 32 }
+
+"fuel.imbalance_1_3"    = { type = "f32",  tag = 40 }
+"fuel.tank.1.quantity"  = { type = "f32",  tag = 41 }
+"fuel.tank.3.quantity"  = { type = "f32",  tag = 43 }
+"fuel.crossfeed_open"   = { type = "bool", tag = 44 }
+
+"cabin.altitude"      = { type = "f32",  tag = 50 }
+"cabin.rate_of_climb" = { type = "f32",  tag = 51 }
+"aircraft.on_ground"  = { type = "bool", tag = 52 }
+
+# ---------------------------------------------------------------------------
+# Controls: actuable, never readable.
+#
+#   switch     OFF / ON        set, start, stop, check
+#   valve      CLOSED / OPEN   set, open, close, check
+#   selector   as declared     set, check
+#   analog     min..max        set, check
+#   checklist  no actuator     check only
+# ---------------------------------------------------------------------------
+
+[controls]
+HYD_1_ENGINE_PUMP     = { kind = "checklist", tag = 100 }
+HYD_2_ENGINE_PUMP     = { kind = "checklist", tag = 101 }
+HYD_3_ENGINE_PUMP     = { kind = "checklist", tag = 102 }
+HYD_2_ELECTRIC_PUMP   = { kind = "switch",    tag = 103 }
+HYD_2_ISOLATION_VALVE = { kind = "valve",     tag = 104 }
+
+GEN_2_FIELD = { kind = "switch", tag = 110 }
+BUS_TIE_1_2 = { kind = "valve",  tag = 111 }
+
+FUEL_XFEED_SELECTOR       = { kind = "selector",  tag = 120, positions = ["OFF", "TANK_1_TO_3", "TANK_3_TO_1"] }
+FUEL_CROSSFEED_VALVE      = { kind = "valve",     tag = 121 }
+FUEL_QUANTITY_INDICATION  = { kind = "checklist", tag = 122 }
+FUEL_PUMP_PRESSURE_TARGET = { kind = "analog",    tag = 123, min = 0.0, max = 50.0 }
+
+OUTFLOW_VALVE_FORWARD      = { kind = "valve",     tag = 130 }
+OUTFLOW_VALVE_AFT          = { kind = "valve",     tag = 131 }
+PACK_FLOW_SELECTOR         = { kind = "selector",  tag = 132, positions = ["OFF", "NORMAL", "HIGH"] }
+OXYGEN_PRESSURE_INDICATION = { kind = "checklist", tag = 133 }

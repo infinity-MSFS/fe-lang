@@ -3,8 +3,12 @@ resolver = "2"
 members=[
     "fe-compiler",
     "fe-lang",
+    "fe-lsp",
+    "fe-project",
     "fe-runtime"
 ]
+
+exclude = ["editors/zed"]
 
 [workspace.package]
 version = "0.1.0"

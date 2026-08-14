@@ -2,14 +2,35 @@ use crate::diagnostics::{Diagnostic, Diagnostics, Label, codes};
 use crate::span::{Span, UnitId};
 use crate::token::{Token, TokenKind};
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum TriviaKind {
+    Line,
+    Block,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Trivia {
+    pub kind: TriviaKind,
+    pub span: Span,
+}
+
 pub struct Lexer<'a> {
     src: &'a str,
     bytes: &'a [u8],
     pos: usize,
     unit: UnitId,
+    trivia: Vec<Trivia>,
 }
 
 pub fn tokenize<'a>(unit: UnitId, src: &'a str, diagnostics: &mut Diagnostics) -> Vec<Token<'a>> {
+    Lexer::new(unit, src).run(diagnostics).0
+}
+
+pub fn tokenize_with_trivia<'a>(
+    unit: UnitId,
+    src: &'a str,
+    diagnostics: &mut Diagnostics,
+) -> (Vec<Token<'a>>, Vec<Trivia>) {
     Lexer::new(unit, src).run(diagnostics)
 }
 
@@ -20,6 +41,7 @@ impl<'a> Lexer<'a> {
             bytes: src.as_bytes(),
             pos: 0,
             unit,
+            trivia: Vec::new(),
         }
     }
 
@@ -49,7 +71,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn run(mut self, diagnostics: &mut Diagnostics) -> Vec<Token<'a>> {
+    pub fn run(mut self, diagnostics: &mut Diagnostics) -> (Vec<Token<'a>>, Vec<Trivia>) {
         let mut tokens = Vec::new();
         loop {
             self.skip_trivia(diagnostics);
@@ -161,12 +183,17 @@ impl<'a> Lexer<'a> {
         }
         let start = self.pos;
         tokens.push(self.token(TokenKind::Eof, start));
-        tokens
+        (tokens, self.trivia)
     }
 
     fn single(&mut self, kind: TokenKind) -> TokenKind {
         self.pos += 1;
         kind
+    }
+
+    fn record_trivia(&mut self, kind: TriviaKind, start: usize) {
+        let span = self.span(start);
+        self.trivia.push(Trivia { kind, span });
     }
 
     fn skip_trivia(&mut self, diagnostics: &mut Diagnostics) {
@@ -176,12 +203,14 @@ impl<'a> Lexer<'a> {
                     self.pos += 1;
                 }
                 Some(b'/') if self.peek_at(1) == Some(b'/') => {
+                    let start = self.pos;
                     while let Some(b) = self.peek() {
                         if b == b'\n' {
                             break;
                         }
                         self.pos += 1;
                     }
+                    self.record_trivia(TriviaKind::Line, start);
                 }
                 Some(b'/') if self.peek_at(1) == Some(b'*') => {
                     let start = self.pos;
@@ -194,6 +223,7 @@ impl<'a> Lexer<'a> {
                                     "unterminated block comment",
                                     Label::new(self.span(start), "started here"),
                                 ));
+                                self.record_trivia(TriviaKind::Block, start);
                                 return;
                             }
                             Some(b'*') if self.peek_at(1) == Some(b'/') => {
@@ -205,6 +235,7 @@ impl<'a> Lexer<'a> {
                             }
                         }
                     }
+                    self.record_trivia(TriviaKind::Block, start);
                 }
                 _ => return,
             }

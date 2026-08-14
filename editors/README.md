@@ -4,11 +4,26 @@ Two plugins and the grammar they share.
 
 | | |
 | --- | --- |
-| [`vscode/`](vscode) | Visual Studio Code extension — highlighting, completion, outline, go-to-definition |
+| [`vscode/`](vscode) | Visual Studio Code extension — highlighting, completion, outline, go-to-definition, file icon |
 | [`zed/`](zed) | Zed extension — highlighting, completion, outline, brackets, indentation |
 | [`tree-sitter-fe/`](tree-sitter-fe) | the tree-sitter grammar Zed uses (and Neovim or Helix can) |
+| [`icons/`](icons) | the `.fe` file icon |
 
 Each directory has its own README with how to install it.
+
+## The icon
+
+`icons/fe-original.svg` is the drawing. `icons/fe.svg` is the same shape filled
+rather than stroked, because a hairline that is half a pixel wide at the 16px a
+file tree draws it at breaks up into flecks; that is the one the extensions use,
+and `vscode/icons/fe.svg` is a copy of it, because a `.vsix` can only package
+files inside the extension.
+
+VS Code takes it through `contributes.languages[].icon`. Zed cannot use it at
+all — it resolves suffixes through the active icon theme only, so an extension
+can ship a whole icon theme but cannot add one row to yours. The reasoning, and
+what to paste into your own icon theme if you keep one, is in
+[`zed/README.md`](zed/README.md).
 
 ## What they know and what they don't
 

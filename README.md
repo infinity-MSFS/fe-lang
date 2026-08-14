@@ -54,7 +54,7 @@ procedure HYD_2_LOW_PRESSURE {
 }
 ```
 
-## The three crates
+## The crates
 
 | Crate         | Role                                           | Constraints                                           |
 | ------------- | ---------------------------------------------- | ----------------------------------------------------- |
@@ -65,6 +65,14 @@ procedure HYD_2_LOW_PRESSURE {
 `fe-compiler` depends on `fe-runtime` so the two cannot disagree about the
 format — and so the compiler can load its own output through the aircraft's
 verifier before returning it.
+
+Two more exist for the sake of the editor, and neither is in the path of a
+compiled database:
+
+| Crate        | Role                                                                                         |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| `fe-project` | reads an `fe.toml` into a `SymbolRegistry`; no filesystem either, so a `build.rs` can use it |
+| `fe-lsp`     | the language server: runs `fe-compiler` and speaks the protocol                              |
 
 ## Building a database
 
@@ -155,20 +163,53 @@ The host implements two traits — `AircraftState::read` and
 | [verification.md](docs/verification.md)         | why a tick terminates                        |
 | [runtime.md](docs/runtime.md)                   | the execution model                          |
 | [host-integration.md](docs/host-integration.md) | embedding it in an aircraft                  |
-| [symbols.md](docs/symbols.md)                   | the symbol registry                          |
+| [symbols.md](docs/symbols.md)                   | the symbol registry, and `fe.toml`           |
 | [diagnostics.md](docs/diagnostics.md)           | every code                                   |
+| [editor-support.md](docs/editor-support.md)     | the language server and what it can answer   |
 | [design-decisions.md](docs/design-decisions.md) | the arguments, including the noes            |
 | [extending.md](docs/extending.md)               | adding a statement, opcode or format version |
 
 ## Editing procedures
 
-[`editors/`](editors) has a Visual Studio Code extension and a Zed extension,
-sharing a tree-sitter grammar. Both highlight a control a procedure *moves*
-differently from state it *reads*, complete keywords and the names your own
-files already use, and handle the language's contextual keywords, so
-`hydraulic.name.check` stays a path. Neither compiles anything: whether a
-control exists is a question only `fe-compiler` and an aircraft's
-`SymbolRegistry` can answer.
+[`fe-lsp`](fe-lsp) is a language server that runs this compiler over your
+project on every edit, so what you see while typing is what the build will say —
+the same diagnostic, with the same code.
+
+```
+cargo install --path fe-lsp
+```
+
+[`editors/`](editors) has the two clients: [Visual Studio Code](editors/vscode)
+and [Zed](editors/zed). Both are launchers; the language lives in the server.
+
+```
+error[E0206]: `open` cannot be applied to `HYD_2_ELECTRIC_PUMP`
+```
+
+Completion is filtered by the registry rather than guessed at — `open ` offers
+valves and not switches, `set FUEL_XFEED_SELECTOR = ` offers exactly the three
+positions that selector has — and the common mistakes come with a one-click fix.
+There is also hover, go-to-definition and references across files, rename,
+formatting that keeps your comments, and inlay hints.
+
+All of which requires knowing what the aircraft has, which is why the registry
+gets a written form:
+
+```toml
+# fe.toml
+[state]
+"hydraulic.2.pressure" = { type = "f32", tag = 10 }
+
+[controls]
+HYD_2_ELECTRIC_PUMP = { kind = "switch", tag = 103 }
+FUEL_XFEED_SELECTOR = { kind = "selector", tag = 120, positions = ["OFF", "TANK_1_TO_3", "TANK_3_TO_1"] }
+```
+
+[`fe-project`](fe-project) reads it into the same `SymbolRegistry` the examples
+above build by hand, so an aircraft's build and its author's editor can be
+given the one file and cannot disagree. Without it the server reports syntax
+only, and says so — a file showing no errors should not be able to mean two
+different things.
 
 ## Tests
 
@@ -176,9 +217,10 @@ control exists is a question only `fe-compiler` and an aircraft's
 cargo test
 ```
 
-162 tests: lexer, parser, semantics, code generation, binary format,
-end-to-end execution against a fake aircraft, a seeded mutation fuzzer, and a
-runtime suite that builds databases by hand with no compiler involved.
+258 tests: lexer, parser, semantics, code generation, binary format, end-to-end
+execution against a fake aircraft, a seeded mutation fuzzer, a runtime suite
+that builds databases by hand with no compiler involved, the manifest, and a
+language server driven over a real protocol connection.
 
 ## The examples are not real procedures
 

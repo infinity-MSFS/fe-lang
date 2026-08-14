@@ -21,8 +21,12 @@ impl Span {
         Span {
             unit: self.unit,
             start: self.start.min(other.start),
-            end: self.end.min(other.end),
+            end: self.end.max(other.end),
         }
+    }
+
+    pub fn contains(&self, offset: u32) -> bool {
+        self.start <= offset && offset <= self.end
     }
 
     pub fn len(&self) -> usize {

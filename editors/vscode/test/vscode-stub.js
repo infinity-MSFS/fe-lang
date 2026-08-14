@@ -1,187 +1,181 @@
-'use strict';
+"use strict";
 
-// Just enough of the editor API for `extension.js` to run under plain node.
+// Just enough of the editor API — and of `vscode-languageclient` — for
+// `extension.js` to run under plain node.
 //
 // It implements what the extension actually touches and nothing else, so it is
 // a test of our wiring rather than of VS Code. If the extension starts using a
 // new API, this file will throw rather than quietly pretend — which is the
 // behaviour we want from it.
 
-const fs = require('node:fs');
-const path = require('node:path');
-const Module = require('node:module');
+const Module = require("node:module");
 
-class Position {
-  constructor(line, character) {
-    this.line = line;
-    this.character = character;
+class Disposable {
+  constructor(onDispose) {
+    this.onDispose = onDispose;
+  }
+
+  dispose() {
+    if (this.onDispose) this.onDispose();
   }
 }
 
-class Range {
-  constructor(start, end) {
-    this.start = start;
-    this.end = end;
+class OutputChannel extends Disposable {
+  constructor(name) {
+    super();
+    this.name = name;
+    this.lines = [];
+    this.shown = false;
+  }
+
+  appendLine(line) {
+    this.lines.push(line);
+  }
+
+  show() {
+    this.shown = true;
   }
 }
 
-class CompletionItem {
-  constructor(label, kind) {
-    this.label = label;
-    this.kind = kind;
+class StatusBarItem extends Disposable {
+  constructor() {
+    super();
+    this.text = "";
+    this.tooltip = undefined;
+    this.command = undefined;
+    this.visible = false;
+  }
+
+  show() {
+    this.visible = true;
+  }
+
+  hide() {
+    this.visible = false;
   }
 }
 
-class SnippetString {
-  constructor(value) {
-    this.value = value;
-  }
+/** The state a test can inspect or arrange. */
+const state = {
+  settings: {},
+  warnings: [],
+  information: [],
+  commands: new Map(),
+  channels: [],
+  statusBars: [],
+  watchers: [],
+};
+
+function reset(settings = {}) {
+  state.settings = settings;
+  state.warnings = [];
+  state.information = [];
+  state.commands = new Map();
+  state.channels = [];
+  state.statusBars = [];
+  state.watchers = [];
 }
 
-class MarkdownString {
-  constructor(value) {
-    this.value = value;
-  }
-}
+const vscode = {
+  StatusBarAlignment: { Left: 1, Right: 2 },
 
-class DocumentSymbol {
-  constructor(name, detail, kind, range, selectionRange) {
-    Object.assign(this, { name, detail, kind, range, selectionRange });
-  }
-}
-
-class Location {
-  constructor(uri, position) {
-    this.uri = uri;
-    this.position = position;
-  }
-}
-
-const DISPOSABLE = { dispose() {} };
-const noEvent = () => DISPOSABLE;
-
-/**
- * Build the stub. `files` is the workspace: a map of path to contents.
- */
-function makeVscode(files) {
-  const registered = {};
-  const settings = { 'completion.enabled': true, 'completion.scanWorkspace': true };
-
-  const uri = value => ({ toString: () => value, fsPath: value });
-
-  const vscode = {
-    Position,
-    Range,
-    CompletionItem,
-    SnippetString,
-    MarkdownString,
-    DocumentSymbol,
-    Location,
-    Uri: { parse: uri },
-    CompletionItemKind: {
-      Keyword: 13,
-      Constant: 20,
-      Property: 9,
-      Value: 11,
-      Function: 2,
-      Unit: 10,
+  window: {
+    createOutputChannel(name) {
+      const channel = new OutputChannel(name);
+      state.channels.push(channel);
+      return channel;
     },
-    SymbolKind: { Function: 11 },
-    window: {
-      createOutputChannel: () => ({ appendLine() {}, dispose() {} }),
+    createStatusBarItem() {
+      const item = new StatusBarItem();
+      state.statusBars.push(item);
+      return item;
     },
-    workspace: {
-      textDocuments: [],
-      getConfiguration: () => ({ get: key => settings[key] }),
-      findFiles: async () => Object.keys(files).map(uri),
-      fs: { readFile: async target => Buffer.from(files[target.fsPath], 'utf8') },
-      createFileSystemWatcher: () => ({
-        onDidDelete: noEvent,
-        onDidCreate: noEvent,
-        dispose() {},
-      }),
-      onDidOpenTextDocument: noEvent,
-      onDidSaveTextDocument: noEvent,
-      onDidChangeConfiguration: noEvent,
-      openTextDocument: async target => makeDocument(files[target.fsPath], target.fsPath),
+    showWarningMessage(message) {
+      state.warnings.push(message);
+      return Promise.resolve(undefined);
     },
-    languages: {
-      registerCompletionItemProvider: (_selector, provider) => {
-        registered.completion = provider;
-        return DISPOSABLE;
-      },
-      registerDocumentSymbolProvider: (_selector, provider) => {
-        registered.symbols = provider;
-        return DISPOSABLE;
-      },
-      registerDefinitionProvider: (_selector, provider) => {
-        registered.definition = provider;
-        return DISPOSABLE;
-      },
+    showInformationMessage(message) {
+      state.information.push(message);
+      return Promise.resolve(undefined);
     },
-  };
+  },
 
-  function makeDocument(text, name = 'untitled.fe') {
-    const offsetOf = position => {
-      const lines = text.split('\n');
-      let offset = 0;
-      for (let i = 0; i < position.line; i += 1) offset += lines[i].length + 1;
-      return offset + position.character;
-    };
+  workspace: {
+    getConfiguration(section) {
+      const values = state.settings[section] || {};
+      return {
+        get(key) {
+          return values[key];
+        },
+      };
+    },
+    createFileSystemWatcher(pattern) {
+      state.watchers.push(pattern);
+      return new Disposable();
+    },
+  },
 
-    return {
-      uri: uri(name),
-      languageId: 'fe',
-      getText: range => (range ? text.slice(offsetOf(range.start), offsetOf(range.end)) : text),
-      positionAt: offset => {
-        const upto = text.slice(0, offset).split('\n');
-        return new Position(upto.length - 1, upto[upto.length - 1].length);
-      },
-      getWordRangeAtPosition: (position, pattern) => {
-        const line = text.split('\n')[position.line];
-        for (const match of line.matchAll(new RegExp(pattern.source, 'g'))) {
-          const start = match.index;
-          const end = start + match[0].length;
-          if (start <= position.character && position.character <= end) {
-            return new Range(new Position(position.line, start), new Position(position.line, end));
-          }
-        }
-        return undefined;
-      },
-      /** The position at the very end of the text — where the cursor is typing. */
-      endPosition: () => {
-        const lines = text.split('\n');
-        return new Position(lines.length - 1, lines[lines.length - 1].length);
-      },
-    };
+  commands: {
+    registerCommand(name, handler) {
+      state.commands.set(name, handler);
+      return new Disposable(() => state.commands.delete(name));
+    },
+  },
+
+  Disposable,
+};
+
+/** The bits of `vscode-languageclient/node` the extension uses. */
+class LanguageClient {
+  constructor(id, name, serverOptions, clientOptions) {
+    this.id = id;
+    this.name = name;
+    this.serverOptions = serverOptions;
+    this.clientOptions = clientOptions;
+    this.started = false;
+    this.restarts = 0;
+    this.handlers = new Map();
   }
 
-  return { vscode, registered, makeDocument };
-}
-
-/** Load the extension with `require('vscode')` answered by the stub. */
-function loadExtension(vscode) {
-  const entry = path.join(__dirname, '..', 'src', 'extension.js');
-  const load = Module._load;
-  Module._load = function (request, ...rest) {
-    if (request === 'vscode') return vscode;
-    return load.call(this, request, ...rest);
-  };
-  try {
-    delete require.cache[require.resolve(entry)];
-    return require(entry);
-  } finally {
-    Module._load = load;
+  onNotification(method, handler) {
+    this.handlers.set(method, handler);
+    return new Disposable();
   }
-}
 
-/** Read a directory of .fe files into the shape `makeVscode` wants. */
-function readWorkspace(directory) {
-  const files = {};
-  for (const name of fs.readdirSync(directory).filter(f => f.endsWith('.fe'))) {
-    files[path.join(directory, name)] = fs.readFileSync(path.join(directory, name), 'utf8');
+  /** Deliver a notification as the server would. */
+  emit(method, params) {
+    const handler = this.handlers.get(method);
+    if (!handler) throw new Error(`nothing is listening for ${method}`);
+    handler(params);
   }
-  return files;
+
+  async start() {
+    this.started = true;
+  }
+
+  async restart() {
+    this.restarts += 1;
+  }
+
+  async stop() {
+    this.started = false;
+  }
+
+  dispose() {}
 }
 
-module.exports = { makeVscode, loadExtension, readWorkspace };
+const languageclient = {
+  LanguageClient,
+  TransportKind: { stdio: 0, ipc: 1, pipe: 2, socket: 3 },
+};
+
+// Make `require('vscode')` and `require('vscode-languageclient/node')` resolve
+// to these, the way they do inside the editor.
+const load = Module._load;
+Module._load = function (request, parent, isMain) {
+  if (request === "vscode") return vscode;
+  if (request === "vscode-languageclient/node") return languageclient;
+  return load.apply(this, [request, parent, isMain]);
+};
+
+module.exports = { vscode, languageclient, state, reset };

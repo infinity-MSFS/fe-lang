@@ -1,151 +1,224 @@
-'use strict';
+"use strict";
 
-// Run with: node --test
-//
-// The extension driven end to end against a stubbed editor API (test/vscode-stub.js)
-// and the real DC-10 examples, which stand in for a workspace.
+// The extension is a launcher, so this tests launching: finding the server,
+// passing the settings on, reporting what it could not do, and reflecting the
+// server's status. Everything about the *language* is tested in `fe-lsp`, where
+// it is implemented.
 
-const test = require('node:test');
-const assert = require('node:assert');
-const path = require('node:path');
-const fs = require('node:fs');
+const assert = require("node:assert");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { test, beforeEach } = require("node:test");
 
-const { makeVscode, loadExtension, readWorkspace } = require('./vscode-stub');
+const { state, reset } = require("./vscode-stub");
+const extension = require("../src/extension");
 
-const EXAMPLES = path.join(__dirname, '..', '..', '..', 'examples', 'dc10');
-const EXTENSION = path.join(__dirname, '..');
+const IS_WINDOWS = process.platform === "win32";
+const BINARY = IS_WINDOWS ? "fe-lsp.exe" : "fe-lsp";
 
-const HEAD = 'procedure P {\n    name "P"\n    category normal\n';
-
-async function activated() {
-  const { vscode, registered, makeDocument } = makeVscode(readWorkspace(EXAMPLES));
-  const extension = loadExtension(vscode);
-  const api = extension.activate({ subscriptions: [], extensionPath: EXTENSION });
-  await api.ready;
-
-  const items = source => {
-    const document = makeDocument(source);
-    return registered.completion.provideCompletionItems(document, document.endPosition());
-  };
-
-  /** What is offered with the cursor at the end of `source`, in the order shown. */
-  const complete = source =>
-    items(source)
-      .slice()
-      .sort((a, b) => (a.sortText < b.sortText ? -1 : a.sortText > b.sortText ? 1 : 0))
-      .map(item => item.label);
-
-  return { registered, makeDocument, complete, items };
+/** A directory containing an executable stand-in for the server. */
+function withFakeServer(name = BINARY) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fe-vscode-"));
+  const binary = path.join(directory, name);
+  fs.writeFileSync(binary, "#!/bin/sh\nexit 0\n");
+  fs.chmodSync(binary, 0o755);
+  return { directory, binary };
 }
 
-test('completion follows the cursor', async () => {
-  const { complete } = await activated();
+function context() {
+  return { subscriptions: [], extensionPath: path.join(__dirname, "..") };
+}
 
-  assert.deepStrictEqual(complete(''), ['procedure']);
+beforeEach(() => reset());
 
-  assert.deepStrictEqual(complete('procedure P {\n    category ').sort(), [
-    'abnormal',
-    'emergency',
-    'normal',
-    'reference',
-  ]);
-
-  // Metadata first, but the steps are there for a procedure that goes straight
-  // to work.
-  const metadata = complete('procedure P {\n    ');
-  assert.strictEqual(metadata[0], 'name');
-  assert.ok(metadata.includes('check'));
-
-  // Once a step has been written, metadata is no longer legal and not offered.
-  const steps = complete(`${HEAD}    check X\n    `);
-  assert.ok(steps.includes('check'));
-  assert.strictEqual(steps.includes('category'), false);
-
-  assert.deepStrictEqual(complete(`${HEAD}    wait fuel.x > 1 timeout `), [
-    '500ms',
-    '1s',
-    '5s',
-    '10s',
-    '30s',
-    '1m',
-    '5m',
-  ]);
-
-  // Nothing at all inside a message.
-  assert.deepStrictEqual(complete(`${HEAD}    notify "hold `), []);
+test("the server is found on PATH", () => {
+  const { directory, binary } = withFakeServer();
+  const previous = process.env.PATH;
+  process.env.PATH = directory;
+  try {
+    assert.deepEqual(extension.findServer(undefined), { command: binary });
+  } finally {
+    process.env.PATH = previous;
+  }
 });
 
-test('completion offers names from the whole workspace', async () => {
-  const { complete } = await activated();
-
-  assert.ok(complete(`${HEAD}    open `).includes('FUEL_CROSSFEED_VALVE'), 'a control');
-  assert.ok(complete(`${HEAD}    call `).includes('ELEC_BUS_2_RESTORE'), 'a procedure');
-  assert.ok(complete(`${HEAD}    wait `).includes('hydraulic.2.pressure'), 'a state path');
-
-  // Controls are not state, and state is not a control. Confusing the two is
-  // the mistake this language is shaped to prevent.
-  assert.strictEqual(complete(`${HEAD}    wait `).includes('FUEL_CROSSFEED_VALVE'), false);
-  assert.strictEqual(complete(`${HEAD}    open `).includes('hydraulic.2.pressure'), false);
-
-  // Positions the workspace uses come before the ones we guessed at.
-  const positions = complete(`${HEAD}    set FUEL_XFEED_SELECTOR = `);
-  assert.ok(positions.includes('TANK_3_TO_1'));
-  assert.ok(positions.indexOf('TANK_3_TO_1') < positions.indexOf('AUTO'));
+test("an explicit path wins over PATH", () => {
+  const onPath = withFakeServer();
+  const configured = withFakeServer("elsewhere");
+  const previous = process.env.PATH;
+  process.env.PATH = onPath.directory;
+  try {
+    const found = extension.findServer(configured.binary);
+    assert.equal(found.command, configured.binary);
+  } finally {
+    process.env.PATH = previous;
+  }
 });
 
-test('a name written a moment ago is offered on the next line', async () => {
-  const { complete } = await activated();
-
-  const source = `${HEAD}    check BRAND_NEW_CONTROL\n    open `;
-  assert.ok(complete(source).includes('BRAND_NEW_CONTROL'), 'the open file is re-read, not cached');
+test("a configured path that does not exist is an error, not a fallback", () => {
+  const { directory } = withFakeServer();
+  const previous = process.env.PATH;
+  process.env.PATH = directory;
+  try {
+    const found = extension.findServer(path.join(directory, "not-here"));
+    assert.equal(found.command, undefined);
+    assert.match(found.error, /does not exist/);
+  } finally {
+    process.env.PATH = previous;
+  }
 });
 
-test('a step completion inserts a statement, not just a word', async () => {
-  const { registered, makeDocument } = await activated();
-
-  const document = makeDocument(`${HEAD}    `);
-  const items = registered.completion.provideCompletionItems(document, document.endPosition());
-  const set = items.find(item => item.label === 'set');
-
-  assert.strictEqual(set.insertText.value, 'set ${1:CONTROL} = ${2:ON}');
-  assert.match(set.documentation.value, /set CONTROL = ON/);
+test("a missing server explains how to get one", () => {
+  const previous = process.env.PATH;
+  process.env.PATH = "";
+  try {
+    const found = extension.findServer(undefined);
+    assert.equal(found.command, undefined);
+    assert.match(found.error, /cargo install --path fe-lsp/);
+    assert.match(found.error, /fe\.server\.path/);
+  } finally {
+    process.env.PATH = previous;
+  }
 });
 
-test('the outline lists procedures by identifier, titled by name', async () => {
-  const { registered, makeDocument } = await activated();
-
-  const source = fs.readFileSync(path.join(EXAMPLES, 'pressurization.fe'), 'utf8');
-  const symbols = registered.symbols.provideDocumentSymbols(makeDocument(source));
-
-  assert.deepStrictEqual(
-    symbols.map(s => [s.name, s.detail]),
-    [
-      ['CABIN_RAPID_DEPRESSURIZATION', 'Cabin Rapid Depressurization'],
-      ['CABIN_EMERGENCY_DESCENT_SUPPORT', "Emergency Descent - Engineer's Panel"],
-    ],
-  );
-  // The range covers the whole procedure, closing brace included.
-  const first = symbols[0];
-  assert.ok(first.range.end.line > first.range.start.line);
-  assert.strictEqual(source.split('\n')[first.range.end.line].trim(), '}');
-});
-
-test('go to definition follows a call across files', async () => {
-  const { registered, makeDocument } = await activated();
-
-  const source = fs.readFileSync(path.join(EXAMPLES, 'hydraulic.fe'), 'utf8');
-  const document = makeDocument(source, path.join(EXAMPLES, 'hydraulic.fe'));
-  const lines = source.split('\n');
-  const line = lines.findIndex(l => l.trim().startsWith('call ELEC_BUS_2_RESTORE'));
-  assert.notStrictEqual(line, -1, 'the example should still call across files');
-
-  const definition = await registered.definition.provideDefinition(document, {
-    line,
-    character: lines[line].indexOf('ELEC_BUS_2_RESTORE') + 2,
+test("settings reach the server in the shape it reads them", () => {
+  reset({
+    fe: {
+      manifest: "aircraft/fe.toml",
+      "inlayHints.enable": false,
+      "semanticTokens.enable": true,
+    },
   });
+  assert.deepEqual(extension.initializationOptions(), {
+    manifest: "aircraft/fe.toml",
+    inlayHints: { enable: false },
+    semanticTokens: { enable: true },
+  });
+});
 
-  assert.ok(definition, 'the call target resolved');
-  assert.match(definition.uri.toString(), /electrical\.fe$/);
-  const target = fs.readFileSync(path.join(EXAMPLES, 'electrical.fe'), 'utf8').split('\n');
-  assert.match(target[definition.position.line], /^procedure ELEC_BUS_2_RESTORE/);
+test("an unset manifest is sent as empty rather than undefined", () => {
+  reset({ fe: {} });
+  assert.equal(extension.initializationOptions().manifest, "");
+});
+
+test("activating starts the client and watches both file kinds", async () => {
+  const { directory } = withFakeServer();
+  reset({ fe: { "server.path": "" } });
+  const previous = process.env.PATH;
+  process.env.PATH = directory;
+  try {
+    const { client } = await extension.activate(context());
+    assert.ok(client.started, "the client should have been started");
+    assert.deepEqual(client.clientOptions.documentSelector, [
+      { scheme: "file", language: "fe" },
+    ]);
+    // A `.fe` file changed outside the editor, and a change to the aircraft's
+    // symbols, both have to re-check the project.
+    assert.deepEqual(state.watchers, ["**/*.fe", "**/fe.toml"]);
+  } finally {
+    process.env.PATH = previous;
+  }
+});
+
+test("a missing server is reported rather than silently doing less", async () => {
+  reset({ fe: { "server.path": "" } });
+  const previous = process.env.PATH;
+  process.env.PATH = "";
+  try {
+    const { client } = await extension.activate(context());
+    assert.equal(client, undefined);
+    assert.equal(state.warnings.length, 1);
+    assert.match(state.warnings[0], /Could not find/);
+    // …and the reason is in the log too, where it can be read later.
+    assert.match(state.channels[0].lines.join("\n"), /Could not find/);
+  } finally {
+    process.env.PATH = previous;
+  }
+});
+
+test("the status bar says when only syntax is being checked", async () => {
+  const { directory } = withFakeServer();
+  reset({ fe: { "server.path": "" } });
+  const previous = process.env.PATH;
+  process.env.PATH = directory;
+  try {
+    const { client } = await extension.activate(context());
+    const status = state.statusBars[0];
+
+    client.emit("fe/status", {
+      semantic: false,
+      manifest: null,
+      message: "fe: syntax-only — no fe.toml",
+    });
+    assert.match(status.text, /syntax only/);
+    assert.equal(status.tooltip, "fe: syntax-only — no fe.toml");
+    assert.equal(
+      status.command,
+      "fe.showOutput",
+      "the reason should be reachable",
+    );
+    assert.ok(status.visible);
+
+    client.emit("fe/status", {
+      semantic: true,
+      manifest: "/aircraft/fe.toml",
+      message: "fe: checking against /aircraft/fe.toml",
+    });
+    assert.doesNotMatch(status.text, /syntax only/);
+  } finally {
+    process.env.PATH = previous;
+  }
+});
+
+test("the restart command restarts the client", async () => {
+  const { directory } = withFakeServer();
+  reset({ fe: { "server.path": "" } });
+  const previous = process.env.PATH;
+  process.env.PATH = directory;
+  try {
+    const { client } = await extension.activate(context());
+    await state.commands.get("fe.restartServer")();
+    assert.equal(client.restarts, 1);
+  } finally {
+    process.env.PATH = previous;
+  }
+});
+
+test("every contributed command is registered", async () => {
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"),
+  );
+  const { directory } = withFakeServer();
+  reset({ fe: { "server.path": "" } });
+  const previous = process.env.PATH;
+  process.env.PATH = directory;
+  try {
+    await extension.activate(context());
+    for (const { command } of manifest.contributes.commands) {
+      assert.ok(
+        state.commands.has(command),
+        `${command} is contributed but not registered`,
+      );
+    }
+  } finally {
+    process.env.PATH = previous;
+  }
+});
+
+test("every setting the extension reads is contributed", () => {
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "..", "package.json"), "utf8"),
+  );
+  const contributed = Object.keys(
+    manifest.contributes.configuration.properties,
+  );
+  for (const key of [
+    "fe.server.path",
+    "fe.manifest",
+    "fe.inlayHints.enable",
+    "fe.semanticTokens.enable",
+  ]) {
+    assert.ok(contributed.includes(key), `${key} is read but not contributed`);
+  }
 });

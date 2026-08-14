@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="uuid-754b39ec-679e-4f95-9514-a98bda13cc26" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21.64 19.44">
+  <defs>
+    <style>
+      .uuid-13844784-e1bf-4690-82f1-31c526c2866d {
+        stroke-width: .5px;
+      }
+
+      .uuid-13844784-e1bf-4690-82f1-31c526c2866d, .uuid-87ae288c-280d-443a-a39c-3f7c97c57754 {
+        fill: none;
+        stroke: #00aeef;
+        stroke-linejoin: round;
+      }
+
+      .uuid-87ae288c-280d-443a-a39c-3f7c97c57754 {
+        stroke-width: .75px;
+      }
+    </style>
+  </defs>
+  <polygon class="uuid-87ae288c-280d-443a-a39c-3f7c97c57754" points=".38 5.88 3.88 5.88 5.38 7.17 10.03 5.53 6.67 5.53 2.24 .38 13.47 4.38 21.27 4.31 5.03 10.32 .38 5.88"/>
+  <polygon class="uuid-13844784-e1bf-4690-82f1-31c526c2866d" points="4.95 11.53 10.31 11.53 10.31 13.12 6.72 13.12 6.72 14.69 9.98 14.69 9.98 16.09 6.76 16.09 6.76 19.19 4.95 19.19 4.95 11.53"/>
+  <polygon class="uuid-13844784-e1bf-4690-82f1-31c526c2866d" points="11.43 11.53 11.43 19.19 16.88 19.19 16.88 17.78 13.12 17.78 13.12 15.97 16.46 15.97 16.46 14.69 13.2 14.69 13.2 13.04 16.88 13.04 16.88 11.53 11.43 11.53"/>
+</svg>

@@ -1,92 +1,111 @@
 # Flight Engineer for Visual Studio Code
 
-Editing support for `.fe` procedure files: highlighting, completion, an
-outline, and go-to-definition on `call`.
+A client for [`fe-lsp`](../../fe-lsp), the language server for `.fe` procedure
+files.
+
+The extension itself is a launcher of about eighty lines. Everything the editor
+knows about the language — what is wrong with a file, what could go where the
+cursor is, what a name means — comes from the server, which runs the real
+compiler over your project on every edit. Two implementations of the language's
+rules would agree right up until they did not, and the one in the editor would
+be the wrong one.
 
 ## What it does
 
-**Highlighting** distinguishes the two kinds of name in the language, because
-confusing them is the mistake that matters: a **control** (`HYD_2_ELECTRIC_PUMP`
-— something a procedure *moves*) is coloured as a constant, and a **state path**
-(`hydraulic.2.pressure` — something a procedure *reads*) as a property. A
-`category` that is not one of the four the compiler accepts is marked as an
-error while you type.
+**Diagnostics** are `fe-compiler`'s, unmodified, with their stable codes and
+their suggestions:
 
-**Completion** is context-aware, and knows nothing it did not read out of your
-own files:
+```
+error[E0206]: `open` cannot be applied to `HYD_2_ELECTRIC_PUMP`
+```
 
-| Where the cursor is | What is offered |
-| --- | --- |
-| between procedures | the `procedure` skeleton |
-| in a procedure that has no steps yet | metadata entries first, then steps |
-| in a body or an `if` block | steps |
-| after `category` | `normal`, `abnormal`, `emergency`, `reference` |
-| after `check`, `set`, `start`, `stop`, `open`, `close` | every control named anywhere in the workspace |
-| after `set CONTROL =` | positions this workspace uses, then the usual ones |
-| after `call` | every procedure in the workspace, with its crew-facing title |
-| after `timeout` | `500ms`, `1s`, `5s`, `10s`, `30s`, `1m`, `5m` |
-| in a condition | every state path in the workspace, `true`, `false`, `timeout` |
-| inside a string or comment | nothing |
+Everything a build reports, an editor reports — including E0216, which is only
+reachable once code has been generated. Each code links to its entry in
+[`docs/diagnostics.md`](../../docs/diagnostics.md), and the common mistakes come
+with a one-click fix: a misspelled control becomes the right one, `open` on a
+switch becomes `start`, an unlisted position becomes one the control has.
 
-**Outline and breadcrumbs** list the procedures in a file by identifier, with
-the `name` string as the detail.
+**Completion** knows the aircraft. `open ` offers valves and not switches;
+`set FUEL_XFEED_SELECTOR = ` offers exactly the positions that selector has; a
+condition offers state and never a control.
 
-**Go to definition** on the target of a `call` jumps to that procedure, in
-whichever file declares it — procedure identifiers share one flat namespace
-across everything compiled together.
+**Hover** reports a state path's type and a control's kind, positions and host
+tag — the facts the source cannot show and that the type errors are about.
 
-## What it does not do
+**Go to definition, references, rename and the outline** work across the whole
+project, because procedure identifiers share one flat namespace over every file
+compiled together.
 
-It does not compile anything, so it cannot tell you that a control exists, that
-a position is one the host registered, or that a value is in range. Only
-`fe-compiler` knows that, and only against a specific aircraft's
-`SymbolRegistry`. The completion list is a reflection of what your `.fe` files
-already say — a fast way to type a name you have used before, not an assurance
-that the name is real.
+**Formatting** reprints a file from its tokens, so comments survive. A file that
+does not parse is left exactly as it is.
+
+**Inlay hints** show what the source does not say: the position a verb moves a
+control to, an analog control's registered range, a timeout in milliseconds.
+
+## What it needs
+
+An `fe.toml` at or above the project root, declaring the aircraft's symbols —
+see [`examples/dc10/fe.toml`](../../examples/dc10/fe.toml) and
+[`fe-project`](../../fe-project). Without one the server cannot know whether a
+control exists, so it reports syntax only and says so in the status bar rather
+than leaving you to assume a clean file is a correct one.
 
 ## Installing
 
-Copy or symlink this directory into your extensions folder and restart:
+**1. Build the server.** From a checkout of this repository:
 
-| | |
-| --- | --- |
-| Windows | `%USERPROFILE%\.vscode\extensions\fe-lang` |
-| macOS, Linux | `~/.vscode/extensions/fe-lang` |
+```
+cargo install --path fe-lsp
+```
+
+That puts `fe-lsp` in `~/.cargo/bin`, which is on your PATH if you installed
+Rust with `rustup`. If it lives somewhere else, set `fe.server.path`.
+
+**2. Install the extension.**
+
+```
+cd editors/vscode
+npm install
+npx --yes @vscode/vsce package
+code --install-extension fe-lang-0.2.0.vsix
+```
+
+Or, for development, symlink this directory into your extensions folder:
+
+|              |                                            |
+| ------------ | ------------------------------------------ |
+| Windows      | `%USERPROFILE%\.vscode\extensions\fe-lang` |
+| macOS, Linux | `~/.vscode/extensions/fe-lang`             |
 
 ```powershell
 # Windows, from the repository root
 New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.vscode\extensions\fe-lang" -Target "$PWD\editors\vscode"
 ```
 
-Or build a `.vsix` and install it like any other extension:
+## Settings
 
-```
-cd editors/vscode
-npx --yes @vscode/vsce package
-code --install-extension fe-lang-0.1.0.vsix
-```
+| Setting                    | Default |                                                                                                                |
+| -------------------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
+| `fe.server.path`           | `""`    | where `fe-lsp` is; empty means look on PATH                                                                    |
+| `fe.manifest`              | `""`    | where the aircraft's `fe.toml` is, relative to the workspace; empty means the nearest one at or above the root |
+| `fe.inlayHints.enable`     | `true`  | show positions, ranges and resolved timeouts                                                                   |
+| `fe.semanticTokens.enable` | `true`  | colour names by what the registry says they are                                                                |
 
 ## Developing
 
-There is no build step and there are no dependencies — it is plain JavaScript
-against the editor API. Open `editors/vscode` in VS Code and press <kbd>F5</kbd>
-to launch an Extension Development Host with `examples/dc10` open.
-
-The half of the extension with opinions — where the cursor is, and what the
-files say — is in `src/analysis.js`, which never imports `vscode` so that it can
-be tested with plain node. The other half is tested too: `test/vscode-stub.js`
-implements the handful of editor APIs `extension.js` actually calls, so the
-providers can be driven end to end against `examples/dc10` without launching an
-editor.
+Open `editors/vscode` and press <kbd>F5</kbd> for an Extension Development Host
+with `examples/dc10` open — which has an `fe.toml`, so the server runs in full.
 
 ```
 cd editors/vscode
+npm install
 node --test
 ```
 
-## Settings
+`test/vscode-stub.js` implements the handful of editor and language-client APIs
+`extension.js` actually calls, so activation, server discovery, settings and the
+status bar can be driven under plain node. Anything about the _language_ is
+tested in `fe-lsp`, where it is implemented.
 
-| Setting | Default | |
-| --- | --- | --- |
-| `fe.completion.enabled` | `true` | suggest anything at all |
-| `fe.completion.scanWorkspace` | `true` | gather names from every `.fe` file in the workspace, not just the open ones |
+The TextMate grammar in `syntaxes/` stays: the server's semantic tokens layer
+over it rather than replacing it, colouring only the names the registry knows.

@@ -1,0 +1,18 @@
+[package]
+name = "zed-fe"
+version = "0.2.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Zed extension for the FE procedure language"
+
+# Zed loads an extension as a WebAssembly component, which is why this is a
+# `cdylib` and why the directory is in the root manifest's `exclude` list: a
+# `cargo build` at the top of the repository must not try to compile it for the
+# host.
+[lib]
+crate-type = ["cdylib"]
+path = "src/fe.rs"
+
+[dependencies]
+zed_extension_api = "0.7"

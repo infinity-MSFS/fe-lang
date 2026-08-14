@@ -27,18 +27,21 @@ Steps 6–10 are all in `fe-runtime`, and the compiler will fail to build until
 Tests to add: a parser test for the syntax, a sema test for each rejection, a
 codegen snapshot for the emitted shape, an execution test for the behaviour.
 
+The editor side has its own short list — snippets, completion contexts, the
+name walker, formatting — in [`editor-support.md`](editor-support.md).
+
 ## Adding an opcode
 
 In `fe-runtime/src/format.rs`:
 
-* pick an unused byte in the right block (`0x0x`/`0x1x` expression,
+- pick an unused byte in the right block (`0x0x`/`0x1x` expression,
   `0x2x` control flow, `0x3x` actions, `0x4x` waiting, `0x5x`/`0x6x`
   termination);
-* add it to `op`;
-* add its length to `instruction_len` — **this is the one that matters**, since
+- add it to `op`;
+- add its length to `instruction_len` — **this is the one that matters**, since
   every walker derives instruction boundaries from it;
-* add an `Instr` variant and a `decode` case;
-* add it to `is_expression_op` if it is one.
+- add an `Instr` variant and a `decode` case;
+- add it to `is_expression_op` if it is one.
 
 Then handle it in the verifier, the interpreter and the disassembler. All three
 go through `decode`, so a missing case is a compile error rather than a
@@ -55,9 +58,12 @@ behaviour but means the version must be bumped if such files will ship.
 2. Add a `ControlSpec` constructor and teach `positions()`, `position_index()`,
    `kind()` and `validate()` about it.
 3. Decide what the verbs mean for it, if anything.
+4. `fe-project`'s `kind` table, so a manifest can declare it, and the verb table
+   in `fe-lsp/src/locate.rs`, which decides what completion offers after each
+   verb and what a quick fix suggests when the verb is wrong.
 
 Old runtimes read an unknown kind as `ControlKind::Unknown` and pass it to the
-host rather than guessing, so this is *not* format-breaking for `check`-only
+host rather than guessing, so this is _not_ format-breaking for `check`-only
 use — but a `SET_POSITION` on an unknown kind will still be rejected by an old
 verifier, because it cannot check the position index.
 
@@ -99,16 +105,16 @@ you get it wrong.
 
 The suites and what they are for:
 
-| Suite | Covers |
-| --- | --- |
-| `fe-lang/tests/lexer.rs` | tokens, paths versus decimals, durations, malformed input |
-| `fe-lang/tests/parser.rs` | structure, precedence, recovery, rendering |
-| `fe-compiler/tests/sema.rs` | resolution, types, control rules, call graph, warnings |
-| `fe-compiler/tests/codegen.rs` | emitted shape, via disassembly snapshots |
-| `fe-compiler/tests/binary.rs` | layout, determinism, the corruption matrix |
-| `fe-compiler/tests/execution.rs` | end-to-end behaviour against a fake aircraft |
-| `fe-compiler/tests/fuzz.rs` | seeded mutation; verified implies executable |
-| `fe-runtime/tests/standalone.rs` | the runtime with no compiler, from hand-built bytes |
+| Suite                            | Covers                                                    |
+| -------------------------------- | --------------------------------------------------------- |
+| `fe-lang/tests/lexer.rs`         | tokens, paths versus decimals, durations, malformed input |
+| `fe-lang/tests/parser.rs`        | structure, precedence, recovery, rendering                |
+| `fe-compiler/tests/sema.rs`      | resolution, types, control rules, call graph, warnings    |
+| `fe-compiler/tests/codegen.rs`   | emitted shape, via disassembly snapshots                  |
+| `fe-compiler/tests/binary.rs`    | layout, determinism, the corruption matrix                |
+| `fe-compiler/tests/execution.rs` | end-to-end behaviour against a fake aircraft              |
+| `fe-compiler/tests/fuzz.rs`      | seeded mutation; verified implies executable              |
+| `fe-runtime/tests/standalone.rs` | the runtime with no compiler, from hand-built bytes       |
 
 A change that touches the format should fail `binary.rs` and `standalone.rs`.
 A change that touches lowering should fail `codegen.rs`. If a change touches
